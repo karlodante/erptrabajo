@@ -13,10 +13,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import get_dolibarr_settings
 from ..database import get_session
 from ..models import (
     DetalleVenta,
@@ -35,6 +37,7 @@ from ..schemas import (
     VentaUpdate,
 )
 from ..security import get_current_user, require_role
+from ..services import dolibarr_service
 from ..services import peps as peps_service
 
 router = APIRouter()
@@ -61,10 +64,11 @@ async def _venta_to_out(db: AsyncSession, v: Venta) -> VentaOut:
     )
     pagos = list(r2.scalars().all())
 
-    out = VentaOut.model_validate(v)
-    out.detalle_ventas = detalles
-    out.pagos = pagos  # type: ignore[assignment]
-    return out
+    # Sólo columnas: acceder a las relaciones en async dispara lazy-load (MissingGreenlet)
+    datos = {a.key: getattr(v, a.key) for a in sa_inspect(Venta).column_attrs}
+    datos["detalle_ventas"] = detalles
+    datos["pagos"] = pagos
+    return VentaOut.model_validate(datos)
 
 
 # =====================================================================
@@ -134,6 +138,7 @@ async def venta_por_id(venta_id: int, db: AsyncSession = Depends(get_session),
              summary="Crear venta (PUNTO DE VENTA / CAJA RÁPIDA). Aplica PEPS.")
 async def crear_venta(
     payload: VentaCreate,
+    background_tasks: BackgroundTasks,
     current: Usuario = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
@@ -143,6 +148,8 @@ async def crear_venta(
     - Aplica PEPS por cada ítem descontando lotes viejos primero.
     - Calcula subtotal / descuento / total.
     - Registra pagos (mixto permitido).
+    - Tras confirmar localmente, envía la venta a Dolibarr en segundo plano
+      (si Dolibarr no responde queda ``sincronizado_dolibarr = False``).
     """
 
     # --- 1. Validación rápida: que todos los productos existan y estén activos
@@ -228,6 +235,9 @@ async def crear_venta(
 
     await db.commit()
     await db.refresh(venta)
+
+    if get_dolibarr_settings().habilitado:
+        background_tasks.add_task(dolibarr_service.enviar_venta_a_dolibarr, venta.id)
 
     return await _venta_to_out(db, venta)
 

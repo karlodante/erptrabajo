@@ -69,6 +69,8 @@ class VentaOut(VentaBase):
     descuento_total:    Decimal
     total:              Decimal
     estado:             EstadoVenta
+    sincronizado_dolibarr: bool          = False
+    dolibarr_factura_id:   Optional[int] = None
 
     pagos:          list[PagoOut]        = Field(default_factory=list)
     detalle_ventas: list[DetalleVentaOut] = Field(default_factory=list)
