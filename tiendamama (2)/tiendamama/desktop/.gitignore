@@ -1,0 +1,7 @@
+# Ignorar carpeta dist/pyi build intermedia y venv en desktop (no tiene, pero por consistencia)
+dist/
+.build-pyi/
+node_modules/
+python-dist/
+.DS_Store
+*.log

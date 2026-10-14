@@ -1,0 +1,63 @@
+{
+  "name": "tiendamama-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Frontend Tiendamama Lácteos — Vue 3 (Composition API) + Tailwind CSS",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint \"src/**/*.{vue,js,ts}\"",
+    "format": "prettier --write \"src/**/*.{vue,js,ts,css,scss}\"",
+    "electron:dev": "set NODE_ENV=development && electron .",
+    "electron:build": "npm run build && electron-builder",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:linux": "npm run build && electron-builder --linux"
+  },
+  "main": "electron/main.js",
+  "dependencies": {
+    "@vueuse/core": "^10.9.0",
+    "axios": "^1.6.7",
+    "chart.js": "^4.4.1",
+    "date-fns": "^3.3.1",
+    "lucide-vue-next": "^0.344.0",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.21",
+    "vue-chartjs": "^5.3.0",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "autoprefixer": "^10.4.17",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "eslint": "^8.57.0",
+    "eslint-plugin-vue": "^9.22.0",
+    "postcss": "^8.4.35",
+    "prettier": "^3.2.5",
+    "tailwindcss": "^3.4.1",
+    "vite": "^5.1.6"
+  },
+  "build": {
+    "appId": "com.tiendamama.app",
+    "productName": "Tiendamama",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

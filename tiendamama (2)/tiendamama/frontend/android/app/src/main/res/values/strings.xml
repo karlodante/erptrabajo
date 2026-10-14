@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tiendamama</string>
+    <string name="title_activity_main">Tiendamama</string>
+    <string name="package_name">com.tiendamama.app</string>
+    <string name="custom_url_scheme">com.tiendamama.app</string>
+</resources>

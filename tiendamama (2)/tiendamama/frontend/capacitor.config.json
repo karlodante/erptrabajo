@@ -1,0 +1,8 @@
+{
+  "appId": "com.tiendamama.app",
+  "appName": "Tiendamama",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

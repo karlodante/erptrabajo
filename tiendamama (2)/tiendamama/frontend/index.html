@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0D8A72" />
+    <meta name="description"
+          content="Tiendamama Lácteos — Sistema de punto de venta, inventario y gestión." />
+    <title>Tiendamama · Lácteos</title>
+    <!--
+      Tipografía Manrope (weights 500,600,700,800)
+      + JetBrains Mono para tablas / montos
+      + Preconexión para que cargue rápido.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap"
+    />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+    <!-- Desktop Electron bridge (solo existe en la instalación desktop) -->
+    <script>
+      try {
+        if (typeof window !== "undefined" && window.TM_DESKTOP && !window.__TM_DESKTOP_BOOTSTRAPPED__) {
+          window.__TM_DESKTOP_BOOTSTRAPPED__ = true;
+          const cfg = window.TM_DESKTOP.getConfig ? window.TM_DESKTOP.getConfig() : Promise.resolve({});
+          cfg.then((c) => {
+            if (c && c.backendBaseUrl) {
+              const apiBase = c.backendBaseUrl.endsWith("/")
+                ? `${c.backendBaseUrl}api/v1`
+                : `${c.backendBaseUrl}/api/v1`;
+              window.__TM_API_BASE_OVERRIDE__ = apiBase;
+            }
+            if (c) window.TM_DESKTOP_APP = { ...window.TM_DESKTOP_APP, ...c };
+            if (window.TM_DESKTOP.onBackendCrashed) {
+              window.TM_DESKTOP.onBackendCrashed((d) => {
+                try {
+                  window.dispatchEvent(new CustomEvent("app:http-error", {
+                    detail: { status: 503, detail: `Motor interno cerrado (código ${d.code}). Reinicia la aplicación.` },
+                  }));
+                } catch (_) {}
+              });
+            }
+          });
+        }
+      } catch (_) {}
+    </script>
+  </body>
+</html>

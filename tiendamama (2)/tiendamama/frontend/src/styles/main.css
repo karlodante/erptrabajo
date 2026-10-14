@@ -1,0 +1,169 @@
+/* ==========================================================
+   Tiendamama · Design System
+   Base CSS + Tailwind directives + variables globales
+   ========================================================== */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ----------------------------------------------------------
+   0. Variables CSS (para compatibilidad con non-Tailwind JS)
+   ---------------------------------------------------------- */
+:root {
+  --color-primary-600: #0d8a72;
+  --color-secondary-500: #f04e1c;
+  --color-success-500: #10b359;
+  --color-warning-500: #e89412;
+  --color-danger-500:  #f53d4d;
+  --color-text:        #403d39;
+  --color-text-muted:  #78746d;
+  --color-border:      #e6e4de;
+
+  --radius:            10px;
+  --radius-lg:         16px;
+  --shadow-card:
+    0 1px 0 rgba(16,24,40,0.04),
+    0 12px 24px -12px rgba(16,24,40,0.08);
+
+  --font-family:       "Manrope", Inter, system-ui, sans-serif;
+}
+
+/* ----------------------------------------------------------
+   1. Reset suave + defaults tipográficos
+   ---------------------------------------------------------- */
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-surface text-neutral-700 font-sans text-base;
+    font-feature-settings: "ss01", "ss03", "cv02", "cv03", "cv04", "cv11";
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-neutral-800 tracking-tighter;
+  }
+  /* Tipos numéricos (montos, códigos) monoespaciados ligeros */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  ::selection {
+    background-color: rgba(13, 138, 114, 0.18);
+    color: #063a33;
+  }
+
+  /* Form controls base */
+  input,
+  textarea,
+  select {
+    @apply
+      text-neutral-700 bg-surface-elevated
+      border border-border rounded-lg
+      px-3 py-2 text-body-sm
+      transition-all duration-150 ease-soft
+      focus:outline-none
+      focus:border-primary-500 focus:shadow-ring-primary
+      placeholder:text-neutral-400
+      disabled:bg-surface-muted disabled:text-neutral-500 disabled:cursor-not-allowed;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    @apply
+      w-4 h-4 accent-primary-600 cursor-pointer;
+  }
+  select {
+    @apply pr-8 bg-no-repeat appearance-none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a5650' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-position: right 10px center;
+    background-size: 1em;
+  }
+
+  /* Scroll global */
+  ::-webkit-scrollbar         { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb   { background: #d3d0c8; border-radius: 999px; border: 2px solid #fafaf9; }
+  ::-webkit-scrollbar-thumb:hover { background: #a7a49d; }
+  ::-webkit-scrollbar-track   { background: transparent; }
+}
+
+/* ----------------------------------------------------------
+   2. Componentes CSS reutilizables (no Vue)
+   ---------------------------------------------------------- */
+@layer components {
+  /* ---- Superficie ---- */
+  .tm-surface {
+    @apply bg-surface-elevated rounded-xl border border-border shadow-card;
+  }
+  .tm-surface-soft {
+    @apply bg-surface-muted rounded-xl border border-border/70;
+  }
+
+  /* ---- Título de sección (repetitivo en módulos) ---- */
+  .tm-section-title {
+    @apply flex items-center gap-3 pb-4 mb-5 border-b border-border;
+  }
+  .tm-section-title h2 {
+    @apply text-h3;
+  }
+  .tm-section-title p {
+    @apply text-caption text-neutral-500 -mt-0.5;
+  }
+
+  /* ---- Grid métricas / tarjetas de dashboard ---- */
+  .tm-stat-grid {
+    @apply grid gap-gap-card grid-cols-1 sm:grid-cols-2 lg:grid-cols-4;
+  }
+  .tm-stat {
+    @apply tm-surface p-5 relative overflow-hidden;
+  }
+  .tm-stat-icon {
+    @apply
+      w-11 h-11 rounded-lg flex items-center justify-center
+      text-primary-700 bg-primary-50;
+  }
+  .tm-stat-label {
+    @apply text-caption text-neutral-500 font-medium;
+  }
+  .tm-stat-value {
+    @apply text-h2 tabular font-bold mt-1 text-neutral-800;
+  }
+  .tm-stat-delta {
+    @apply inline-flex items-center gap-1 mt-2 text-caption-xs font-semibold;
+  }
+
+  /* ---- Divider ---- */
+  .tm-divider {
+    @apply h-px bg-border my-5;
+  }
+
+  /* ---- Pills / breadcrumbs ---- */
+  .tm-breadcrumb {
+    @apply flex items-center gap-2 text-caption text-neutral-500;
+  }
+  .tm-breadcrumb-sep {
+    @apply text-neutral-300;
+  }
+}
+
+/* ----------------------------------------------------------
+   3. Utilidades ad-hoc
+   ---------------------------------------------------------- */
+@layer utilities {
+  .content-auto { content-visibility: auto; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .text-balance { text-wrap: balance; }
+
+  /* Ring sutil sobre foco accesible */
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-md;
+  }
+}

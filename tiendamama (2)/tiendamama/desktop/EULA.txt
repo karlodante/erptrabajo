@@ -1,0 +1,23 @@
+END USER LICENSE AGREEMENT ("EULA") — TiendaMama Lácteos Desktop
+
+IMPORTANTE: Lea atentamente el presente EULA antes de instalar o utilizar el Software.
+
+1. CONCESIÓN DE LICENCIA
+Se concede una licencia NO EXCLUSIVA, INTRANSFERIBLE y LIMITADA para instalar y
+utilizar el Software TIENDAMAMA LÁCTEOS en una (1) única PC de escritorio o punto
+de venta. Queda estrictamente prohibida la ingeniería inversa, descompilación o
+distribución no autorizada.
+
+2. DATOS LOCALES
+El Software almacena toda la información (ventas, inventario, caja) en forma
+local en la PC donde es instalado. No se comparten datos con servidores remotos.
+El USUARIO es el único responsable de realizar copias de seguridad.
+
+3. RIESGO
+El Software se provee "TAL CUAL", sin garantía de ningún tipo. En ningún caso
+el autor o distribuidor serán responsables por daños emergentes, pérdida de
+datos, o perjuicios indirectos.
+
+4. ACEPTACIÓN
+Al instalar, copiar o de cualquier forma usar el Software, el Usuario acepta
+todas las cláusulas del presente EULA.
