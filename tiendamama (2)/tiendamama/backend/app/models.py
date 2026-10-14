@@ -18,6 +18,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Enum,
+    FetchedValue,
     ForeignKey,
     Index,
     Integer,
@@ -25,6 +26,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.dialects.postgresql import TIMESTAMP
@@ -34,6 +36,12 @@ from sqlalchemy.orm import (
     mapped_column,
     relationship,
 )
+
+
+def _pg_enum(enum_cls: type[enum.Enum], name: str) -> Enum:
+    """Tipo ENUM de PostgreSQL con el mismo nombre y valores (minúsculas) que
+    ``supabase/migrations/001_esquema_inicial.sql``."""
+    return Enum(enum_cls, name=name, values_callable=lambda e: [m.value for m in e])
 
 
 # ===================================================================
@@ -175,7 +183,7 @@ class Usuario(Base):
     username:        Mapped[str]         = mapped_column(String(50), unique=True, nullable=False)
     password_hash:   Mapped[str]         = mapped_column(String(255), nullable=False)
     nombre_completo: Mapped[str]         = mapped_column(String(150), nullable=False)
-    rol:             Mapped[RolUsuario]  = mapped_column(Enum(RolUsuario), default=RolUsuario.CAJERO)
+    rol:             Mapped[RolUsuario]  = mapped_column(_pg_enum(RolUsuario, "rol_usuario"), default=RolUsuario.CAJERO)
     activo:          Mapped[bool]        = mapped_column(Boolean, default=True)
     created_at:      Mapped[datetime]    = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(),
@@ -191,7 +199,7 @@ class Usuario(Base):
     mermas:            Mapped[list["Merma"]]              = relationship(back_populates="usuario")
     movimientos_caja:  Mapped[list["MovimientoCaja"]]     = relationship(back_populates="usuario")
     cotizaciones:      Mapped[list["CotizacionMayorista"]] = relationship(back_populates="usuario")
-    productos_creados: Mapped[list["Producto"]]           = relationship(back_populates="creado_por")
+    productos_creados: Mapped[list["Producto"]]           = relationship(back_populates="creado_por_ref", foreign_keys="Producto.creado_por")
     alertas_leidas:    Mapped[list["Alerta"]]             = relationship(back_populates="usuario_leyo", foreign_keys="Alerta.usuario_leyo_id")
 
 
@@ -239,9 +247,9 @@ class Cliente(Base):
 
     id:             Mapped[int]           = mapped_column(BigInteger, primary_key=True, )
     nombre_rs:      Mapped[str]           = mapped_column(String(150), nullable=False)
-    tipo:           Mapped[TipoCliente]   = mapped_column(Enum(TipoCliente), default=TipoCliente.MINORISTA)
+    tipo:           Mapped[TipoCliente]   = mapped_column(_pg_enum(TipoCliente, "tipo_cliente"), default=TipoCliente.MINORISTA)
     dni_cuit:       Mapped[Optional[str]] = mapped_column(String(13), unique=True, )
-    condicion_iva:  Mapped[CondicionIVA]  = mapped_column(Enum(CondicionIVA), default=CondicionIVA.CONSUMIDOR_FINAL)
+    condicion_iva:  Mapped[CondicionIVA]  = mapped_column(_pg_enum(CondicionIVA, "condicion_iva"), default=CondicionIVA.CONSUMIDOR_FINAL)
     telefono:       Mapped[Optional[str]] = mapped_column(String(30), )
     email:          Mapped[Optional[str]] = mapped_column(String(150), )
     direccion:      Mapped[Optional[str]] = mapped_column(Text, )
@@ -279,7 +287,7 @@ class Producto(Base):
     codigo_barras:   Mapped[Optional[str]]    = mapped_column(String(50), unique=True, )
     nombre:          Mapped[str]              = mapped_column(String(200), nullable=False)
     categoria_id:    Mapped[int]              = mapped_column(ForeignKey("categorias.id", ondelete="RESTRICT"))
-    unidad_medida:   Mapped[UnidadMedida]     = mapped_column(Enum(UnidadMedida), default=UnidadMedida.UNIDAD)
+    unidad_medida:   Mapped[UnidadMedida]     = mapped_column(_pg_enum(UnidadMedida, "unidad_medida"), default=UnidadMedida.UNIDAD)
     precio_unitario: Mapped[Decimal]          = mapped_column(Numeric(12, 2))
     stock_minimo:    Mapped[int]              = mapped_column(Integer, default=5)
     activo:          Mapped[bool]             = mapped_column(Boolean, default=True)
@@ -292,6 +300,12 @@ class Producto(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), 
     )
+
+    # Integración Dolibarr (supabase/migrations/002_dolibarr.sql)
+    dolibarr_id:              Mapped[Optional[int]]      = mapped_column(BigInteger, unique=True)
+    dolibarr_stock:           Mapped[Optional[Decimal]]  = mapped_column(Numeric(12, 3))
+    dolibarr_tva_tx:          Mapped[Optional[Decimal]]  = mapped_column(Numeric(6, 3))
+    dolibarr_sincronizado_en: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
 
     __table_args__ = (
         CheckConstraint("precio_unitario >= 0", name="chk_precio_unitario_no_negativo"),
@@ -331,7 +345,7 @@ class Lote(Base):
         TIMESTAMP(timezone=True), server_default=func.now(),
     )
     fecha_vencimiento: Mapped[date]            = mapped_column(Date, nullable=False)
-    estado:           Mapped[EstadoLote]       = mapped_column(Enum(EstadoLote), default=EstadoLote.ACTIVO)
+    estado:           Mapped[EstadoLote]       = mapped_column(_pg_enum(EstadoLote, "estado_lote"), default=EstadoLote.ACTIVO)
     created_at:       Mapped[datetime]         = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), 
     )
@@ -403,7 +417,7 @@ class ComboPromocion(Base):
     id:           Mapped[int]             = mapped_column(BigInteger, primary_key=True, )
     nombre:       Mapped[str]             = mapped_column(String(200), nullable=False)
     descripcion:  Mapped[Optional[str]]   = mapped_column(Text, )
-    tipo:         Mapped[TipoCombo]       = mapped_column(Enum(TipoCombo))
+    tipo:         Mapped[TipoCombo]       = mapped_column(_pg_enum(TipoCombo, "tipo_combo"))
     valor:        Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), )
     fecha_inicio: Mapped[date]            = mapped_column(Date)
     fecha_fin:    Mapped[Optional[date]]  = mapped_column(Date, )
@@ -453,7 +467,7 @@ class Venta(Base):
     __tablename__ = "ventas"
 
     id:                 Mapped[int]           = mapped_column(BigInteger, primary_key=True, )
-    numero_comprobante: Mapped[int]           = mapped_column(BigInteger, unique=True)
+    numero_comprobante: Mapped[int]           = mapped_column(BigInteger, unique=True, server_default=FetchedValue())  # BIGSERIAL
     fecha_hora:         Mapped[datetime]      = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(),
     )
@@ -466,11 +480,25 @@ class Venta(Base):
     subtotal:        Mapped[Decimal]       = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     descuento_total: Mapped[Decimal]       = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     total:           Mapped[Decimal]       = mapped_column(Numeric(12, 2))
-    estado:          Mapped[EstadoVenta]   = mapped_column(Enum(EstadoVenta), default=EstadoVenta.PAGADA)
+    estado:          Mapped[EstadoVenta]   = mapped_column(_pg_enum(EstadoVenta, "estado_venta"), default=EstadoVenta.PAGADA)
     observaciones:   Mapped[Optional[str]] = mapped_column(Text, )
     created_at:      Mapped[datetime]      = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), 
     )
+
+    # Integración Dolibarr (supabase/migrations/002_dolibarr.sql)
+    sincronizado_dolibarr:     Mapped[bool]               = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False,
+    )
+    dolibarr_factura_id:       Mapped[Optional[int]]      = mapped_column(BigInteger)
+    dolibarr_factura_validada: Mapped[bool]               = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False,
+    )
+    dolibarr_intentos:         Mapped[int]                = mapped_column(
+        Integer, default=0, server_default="0", nullable=False,
+    )
+    ultimo_error_dolibarr:     Mapped[Optional[str]]      = mapped_column(Text)
+    dolibarr_sincronizado_en:  Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
 
     __table_args__ = (
         CheckConstraint("subtotal >= 0",        name="chk_ventas_subtotal_no_negativo"),
@@ -479,6 +507,7 @@ class Venta(Base):
         Index("idx_ventas_fecha_hora",    "fecha_hora", postgresql_ops={"fecha_hora": "DESC"}),
         Index("idx_ventas_usuario_fecha", "usuario_id",   "fecha_hora", postgresql_ops={"fecha_hora": "DESC"}),
         Index("idx_ventas_estado",        "estado"),
+        Index("idx_ventas_sincronizado_dolibarr", "sincronizado_dolibarr"),
     )
 
     # Relaciones
@@ -495,7 +524,7 @@ class VentaPago(Base):
 
     id:         Mapped[int]        = mapped_column(BigInteger, primary_key=True, )
     venta_id:   Mapped[int]        = mapped_column(ForeignKey("ventas.id", ondelete="CASCADE"))
-    forma_pago: Mapped[FormaPago]  = mapped_column(Enum(FormaPago))
+    forma_pago: Mapped[FormaPago]  = mapped_column(_pg_enum(FormaPago, "forma_pago"))
     monto:      Mapped[Decimal]    = mapped_column(Numeric(12, 2))
     created_at: Mapped[datetime]   = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), 
@@ -525,6 +554,7 @@ class DetalleVenta(Base):
     precio_unitario_aplicado: Mapped[Decimal]       = mapped_column(Numeric(12, 2))
     descuento_unitario:       Mapped[Decimal]       = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     subtotal:                 Mapped[Decimal]       = mapped_column(Numeric(12, 2))
+    dolibarr_movimiento_id:   Mapped[Optional[int]] = mapped_column(BigInteger)
 
     __table_args__ = (
         CheckConstraint("cantidad > 0",                   name="chk_dv_cantidad_positiva"),
@@ -556,7 +586,7 @@ class Merma(Base):
         ForeignKey("lotes.id", ondelete="SET NULL"), 
     )
     cantidad:      Mapped[int]           = mapped_column(Integer)
-    motivo:        Mapped[MotivoMerma]   = mapped_column(Enum(MotivoMerma))
+    motivo:        Mapped[MotivoMerma]   = mapped_column(_pg_enum(MotivoMerma, "motivo_merma"))
     fecha_hora:    Mapped[datetime]      = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(),
     )
@@ -593,7 +623,7 @@ class CotizacionMayorista(Base):
     subtotal:         Mapped[Decimal]             = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     descuento_total:  Mapped[Decimal]             = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     total:            Mapped[Decimal]             = mapped_column(Numeric(12, 2))
-    estado:           Mapped[EstadoCotizacion]    = mapped_column(Enum(EstadoCotizacion), default=EstadoCotizacion.PENDIENTE)
+    estado:           Mapped[EstadoCotizacion]    = mapped_column(_pg_enum(EstadoCotizacion, "estado_cotizacion"), default=EstadoCotizacion.PENDIENTE)
     stock_reservado:  Mapped[bool]                = mapped_column(Boolean, default=False)
     observaciones:    Mapped[Optional[str]]       = mapped_column(Text, )
     created_at:       Mapped[datetime]            = mapped_column(
@@ -659,7 +689,7 @@ class ArqueoCaja(Base):
     monto_efectivo_contado: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), )
     monto_esperado:         Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), )
     diferencia:             Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), )
-    estado:                 Mapped[EstadoArqueo]  = mapped_column(Enum(EstadoArqueo), default=EstadoArqueo.ABIERTO)
+    estado:                 Mapped[EstadoArqueo]  = mapped_column(_pg_enum(EstadoArqueo, "estado_arqueo"), default=EstadoArqueo.ABIERTO)
     observaciones:          Mapped[Optional[str]] = mapped_column(Text, )
     created_at:             Mapped[datetime]      = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), 
@@ -687,8 +717,8 @@ class MovimientoCaja(Base):
 
     id:         Mapped[int]                = mapped_column(BigInteger, primary_key=True, )
     arqueo_id:  Mapped[int]                = mapped_column(ForeignKey("arqueos_caja.id", ondelete="RESTRICT"))
-    tipo:       Mapped[TipoMovimientoCaja] = mapped_column(Enum(TipoMovimientoCaja))
-    categoria:  Mapped[CategoriaMovimiento] = mapped_column(Enum(CategoriaMovimiento), default=CategoriaMovimiento.OTRO)
+    tipo:       Mapped[TipoMovimientoCaja] = mapped_column(_pg_enum(TipoMovimientoCaja, "tipo_movimiento_caja"))
+    categoria:  Mapped[CategoriaMovimiento] = mapped_column(_pg_enum(CategoriaMovimiento, "categoria_movimiento"), default=CategoriaMovimiento.OTRO)
     monto:      Mapped[Decimal]            = mapped_column(Numeric(12, 2))
     motivo:     Mapped[Optional[str]]      = mapped_column(Text, )
     fecha_hora: Mapped[datetime]           = mapped_column(
@@ -719,7 +749,7 @@ class PedidoSugerido(Base):
     fecha_generacion: Mapped[datetime]            = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(),
     )
-    estado:           Mapped[EstadoPedidoSugerido] = mapped_column(Enum(EstadoPedidoSugerido), default=EstadoPedidoSugerido.PENDIENTE)
+    estado:           Mapped[EstadoPedidoSugerido] = mapped_column(_pg_enum(EstadoPedidoSugerido, "estado_pedido_sugerido"), default=EstadoPedidoSugerido.PENDIENTE)
     usuario_id:       Mapped[Optional[int]]       = mapped_column(
         ForeignKey("usuarios.id", ondelete="SET NULL"), 
     )
@@ -763,8 +793,8 @@ class Alerta(Base):
     __tablename__ = "alertas"
 
     id:               Mapped[int]                = mapped_column(BigInteger, primary_key=True, )
-    tipo:             Mapped[TipoAlerta]         = mapped_column(Enum(TipoAlerta))
-    severidad:        Mapped[SeveridadAlerta]    = mapped_column(Enum(SeveridadAlerta), default=SeveridadAlerta.WARNING)
+    tipo:             Mapped[TipoAlerta]         = mapped_column(_pg_enum(TipoAlerta, "tipo_alerta"))
+    severidad:        Mapped[SeveridadAlerta]    = mapped_column(_pg_enum(SeveridadAlerta, "severidad_alerta"), default=SeveridadAlerta.WARNING)
     producto_id:      Mapped[Optional[int]]      = mapped_column(
         ForeignKey("productos.id", ondelete="CASCADE"), 
     )

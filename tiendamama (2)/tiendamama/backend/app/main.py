@@ -4,24 +4,29 @@ Archivo principal — crea la aplicación FastAPI y le adjunta routers y middlew
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from .config import get_settings
-from .database import init_db
+from .config import get_dolibarr_settings, get_settings
+from .database import engine, init_db
 from .routers import (
     auth as router_auth,
     caja as router_caja,
     cotizaciones as router_cotizaciones,
+    dolibarr as router_dolibarr,
     lotes as router_lotes,
     mermas as router_mermas,
     productos as router_productos,
     proveedores as router_proveedores,
     ventas as router_ventas,
 )
+from .services import dolibarr_service
 
 
 # ---------------------------------------------------------------------------
@@ -33,8 +38,25 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     settings = get_settings()
     if settings.DEBUG:
         await init_db()  # sólo en desarrollo — en producción usar Alembic
+
+    # Dolibarr: columnas de seguimiento + reintento periódico de ventas pendientes
+    try:
+        await dolibarr_service.asegurar_columnas_dolibarr(engine)
+    except Exception:  # noqa: BLE001 — sin DB igual debe arrancar la API
+        logging.getLogger("tiendamama.dolibarr").exception(
+            "No se pudieron verificar las columnas de Dolibarr")
+    dol = get_dolibarr_settings()
+    tarea_reintentos = None
+    if dol.habilitado and dol.RETRY_SECONDS > 0:
+        tarea_reintentos = asyncio.create_task(
+            dolibarr_service.bucle_reintentos(dol.RETRY_SECONDS))
+
     yield
-    # shutdown: si en el futuro se necesita limpiar recursos, va acá.
+
+    if tarea_reintentos is not None:
+        tarea_reintentos.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await tarea_reintentos
 
 
 # ---------------------------------------------------------------------------
@@ -100,3 +122,4 @@ app.include_router(router_caja.router,           prefix=f"{PREFIX}/caja",       
 app.include_router(router_mermas.router,         prefix=f"{PREFIX}/mermas",        tags=["Mermas"])
 app.include_router(router_cotizaciones.router,   prefix=f"{PREFIX}/cotizaciones",  tags=["Cotizaciones Mayoristas"])
 app.include_router(router_proveedores.router,    prefix=f"{PREFIX}/proveedores",   tags=["Proveedores"])
+app.include_router(router_dolibarr.router,       prefix=f"{PREFIX}/dolibarr",      tags=["Dolibarr ERP"])

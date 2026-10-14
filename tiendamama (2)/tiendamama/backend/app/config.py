@@ -81,6 +81,41 @@ class Settings(BaseSettings):
     ALERTAS_CRON_SEGUNDOS: int   = Field(default=600)  # job cada 10 min
 
 
+class DolibarrSettings(BaseSettings):
+    """Integración con Dolibarr ERP (API REST).
+
+    Se leen sin el prefijo ``APP_``: ``DOLIBARR_URL``, ``DOLIBARR_API_KEY``, etc.
+    Si ``DOLIBARR_API_KEY`` está vacía la integración queda deshabilitada.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="DOLIBARR_",
+        extra="ignore",
+    )
+
+    URL: str = Field(default="http://localhost/dolibarr/api/index.php")
+    API_KEY: str = Field(default="")
+    SOCID_DEFAULT: int = Field(default=1)       # tercero "cliente mostrador"
+    WAREHOUSE_ID: int = Field(default=1)        # almacén principal
+    TIMEOUT: float = Field(default=10.0)
+    PAGE_SIZE: int = Field(default=1000)
+    RETRY_SECONDS: int = Field(default=300)     # 0 = sin reintento automático
+    VALIDAR_FACTURA: bool = Field(default=True)
+    TVA_TX_DEFAULT: float = Field(default=0.0)  # IVA % si el producto no lo trae de Dolibarr
+    CATEGORIA_DEFAULT: str = Field(default="Dolibarr")  # para productos nuevos importados
+
+    @property
+    def habilitado(self) -> bool:
+        return bool(self.API_KEY and self.URL)
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
+
+@lru_cache(maxsize=1)
+def get_dolibarr_settings() -> DolibarrSettings:
+    return DolibarrSettings()
