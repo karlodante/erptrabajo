@@ -18,13 +18,14 @@ import pytest
 os.environ.setdefault("DOLIBARR_API_KEY", "test-key")
 os.environ.setdefault("DOLIBARR_URL", "http://dolibarr.test/api/index.php")
 
-from sqlalchemy import delete, select, text  # noqa: E402
+from sqlalchemy import delete, func, select, text  # noqa: E402
 
 from app.config import get_dolibarr_settings  # noqa: E402
 from app.database import AsyncSessionLocal, engine  # noqa: E402
 from app.models import (  # noqa: E402
     Categoria,
     DetalleVenta,
+    Lote,
     Producto,
     RolUsuario,
     Usuario,
@@ -224,6 +225,21 @@ def test_sincronizar_productos_crea_y_actualiza():
                 assert (nu.sku, nu.codigo_barras, nu.precio_unitario) == (
                     f"NUEVO-{sufijo}", f"B{sufijo}", Decimal("50.00"))
                 assert nu.dolibarr_tva_tx == Decimal("10.5") and nu.dolibarr_stock == Decimal("3")
+
+                lotes = {lt.producto_id: lt for lt in (await db.execute(select(Lote).where(
+                    Lote.producto_id.in_([ex.id, nu.id])))).scalars().all()}
+                assert (lotes[ex.id].cantidad_actual, lotes[nu.id].cantidad_actual) == (7, 3)
+                assert lotes[nu.id].numero_lote == f"DOLIBARR-{dol_nuevo}"
+            assert {lc["sku"] for lc in res["lotes_creados"]} >= {f"EXIST-{sufijo}", f"NUEVO-{sufijo}"}
+
+            # Segunda sincronización: ya tienen lote → no se duplica
+            res2 = await svc.sincronizar_productos_dolibarr()
+            assert not {lc["sku"] for lc in res2["lotes_creados"]} & {
+                f"EXIST-{sufijo}", f"NUEVO-{sufijo}"}
+            async with AsyncSessionLocal() as db:
+                n = (await db.execute(select(func.count()).select_from(Lote).where(
+                    Lote.producto_id.in_([ex.id, nu.id])))).scalar_one()
+                assert n == 2
         finally:
             svc._transport_override = None
             async with AsyncSessionLocal() as db:

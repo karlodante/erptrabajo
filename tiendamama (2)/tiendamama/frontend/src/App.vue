@@ -251,6 +251,7 @@ const ICONS = {
   Calculator: I.Calculator,
   Truck:    I.Truck,
   Gift:     I.Gift,
+  RefreshCw: I.RefreshCw,
   Circle:   I.CircleDot,
 };
 

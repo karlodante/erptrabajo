@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
 
@@ -252,6 +252,39 @@ async def estado_dolibarr() -> dict:
 # =====================================================================
 # Dolibarr → POS: productos
 # =====================================================================
+async def _crear_lotes_iniciales(
+    db: AsyncSession, productos: list[Producto], costos: dict[int, Decimal], s: DolibarrSettings,
+) -> list[dict]:
+    """Crea un lote con el stock de Dolibarr para los productos sin ningún lote local."""
+    ids = [p.id for p in productos]
+    if not ids:
+        return []
+    con_lotes = set((await db.execute(
+        select(Lote.producto_id).where(Lote.producto_id.in_(ids)).distinct()
+    )).scalars().all())
+    vencimiento = _ahora().date() + timedelta(days=max(1, s.LOTE_DIAS_VENCIMIENTO))
+    creados = []
+    for p in productos:
+        cantidad = int(p.dolibarr_stock or 0)  # los lotes manejan unidades enteras
+        if p.id in con_lotes or cantidad < 1:
+            continue
+        costo = costos.get(p.dolibarr_id, Decimal("0"))
+        db.add(Lote(
+            producto_id=p.id,
+            numero_lote=f"DOLIBARR-{p.dolibarr_id}",
+            cantidad_inicial=cantidad,
+            cantidad_actual=cantidad,
+            costo_unitario=costo if costo > 0 else Decimal("0"),
+            fecha_vencimiento=vencimiento,
+            estado=EstadoLote.ACTIVO,
+        ))
+        creados.append({"producto_id": p.id, "sku": p.sku, "nombre": p.nombre,
+                        "cantidad": cantidad, "fecha_vencimiento": vencimiento.isoformat()})
+    if creados:
+        await db.flush()
+    return creados
+
+
 async def sincronizar_productos_dolibarr(db: Optional[AsyncSession] = None) -> dict:
     """Importa/actualiza productos desde ``GET /products``.
 
@@ -265,6 +298,11 @@ async def sincronizar_productos_dolibarr(db: Optional[AsyncSession] = None) -> d
         stock del almacén DOLIBARR_WAREHOUSE_ID → dolibarr_stock
 
     Empareja por ``dolibarr_id``, luego ``sku`` y luego ``codigo_barras``.
+
+    Con ``DOLIBARR_LOTE_INICIAL`` (por defecto activo), a cada producto que
+    todavía no tiene ningún lote local y tiene stock en Dolibarr se le crea un
+    lote inicial con ese stock, para poder venderlo en caja de inmediato.
+    Los productos que ya tienen lotes no se tocan (solo se informan diferencias).
     """
     if db is None:
         async with AsyncSessionLocal() as nueva:
@@ -286,6 +324,7 @@ async def sincronizar_productos_dolibarr(db: Optional[AsyncSession] = None) -> d
     errores: list[dict] = []
     ahora = _ahora()
     categoria_id: Optional[int] = None
+    costos: dict[int, Decimal] = {}
 
     for rp in remotos:
         try:
@@ -300,6 +339,7 @@ async def sincronizar_productos_dolibarr(db: Optional[AsyncSession] = None) -> d
             DOS_DECIMALES, rounding=ROUND_HALF_UP)
         tva = _decimal(rp.get("tva_tx"), default=str(s.TVA_TX_DEFAULT))
         stock = _stock_dolibarr(rp, s.WAREHOUSE_ID)
+        costos[dol_id] = _decimal(rp.get("cost_price") or rp.get("pmp"))
 
         prod = por_dol.get(dol_id) or (por_sku.get(ref) if ref else None) \
             or (por_barra.get(barcode) if barcode else None)
@@ -345,6 +385,9 @@ async def sincronizar_productos_dolibarr(db: Optional[AsyncSession] = None) -> d
 
     await db.flush()
 
+    lotes_creados = await _crear_lotes_iniciales(db, list(por_dol.values()), costos, s) \
+        if s.LOTE_INICIAL else []
+
     # Diferencias de stock: Dolibarr vs. suma de lotes activos (PEPS)
     stock_local = dict((await db.execute(
         select(Lote.producto_id, func.coalesce(func.sum(Lote.cantidad_actual), 0))
@@ -363,10 +406,12 @@ async def sincronizar_productos_dolibarr(db: Optional[AsyncSession] = None) -> d
     await db.commit()
     resultado = {
         "recibidos": len(remotos), "creados": creados, "actualizados": actualizados,
-        "omitidos": omitidos, "errores": errores, "diferencias_stock": diferencias,
+        "omitidos": omitidos, "errores": errores, "lotes_creados": lotes_creados,
+        "diferencias_stock": diferencias,
     }
     logger.info("Sincronización de productos Dolibarr: %s",
-                {k: v for k, v in resultado.items() if k != "diferencias_stock"})
+                {k: v for k, v in resultado.items()
+                 if k not in ("diferencias_stock", "lotes_creados")} | {"lotes_creados": len(lotes_creados)})
     return resultado
 
 

@@ -46,6 +46,12 @@ const routes = [
     component: () => import("@/views/PedidosProveedoresView.vue"),
     meta: { title: "Pedidos sugeridos a proveedores", icon: "Truck", group: "Operaciones" },
   },
+  {
+    path: "/dolibarr",
+    name: "Dolibarr",
+    component: () => import("@/views/DolibarrView.vue"),
+    meta: { title: "Integración Dolibarr ERP", icon: "RefreshCw", group: "Administración" },
+  },
 ];
 
 const router = createRouter({

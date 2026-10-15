@@ -105,6 +105,8 @@ class DolibarrSettings(BaseSettings):
     VALIDAR_FACTURA: bool = Field(default=True)
     TVA_TX_DEFAULT: float = Field(default=0.0)  # IVA % si el producto no lo trae de Dolibarr
     CATEGORIA_DEFAULT: str = Field(default="Dolibarr")  # para productos nuevos importados
+    LOTE_INICIAL: bool = Field(default=True)    # crear lote inicial con el stock de Dolibarr
+    LOTE_DIAS_VENCIMIENTO: int = Field(default=30)  # vencimiento del lote inicial (días desde hoy)
 
     @property
     def habilitado(self) -> bool:
